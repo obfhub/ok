@@ -1,0 +1,355 @@
+--// ESPPreview.lua (drop-in)
+--// Creates a ViewportFrame-based ESP preview for LocalPlayer
+--// Corner box + name + weapon, with avatar colored pink (255,0,242)
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local LP = Players.LocalPlayer
+
+local function SafeDestroy(x)
+	if x and x.Destroy then pcall(function() x:Destroy() end) end
+end
+
+local function StripCharacterForViewport(char: Model)
+	-- remove scripts/animators to avoid weird behavior in viewport
+	for _, d in ipairs(char:GetDescendants()) do
+		if d:IsA("Script") or d:IsA("LocalScript") then
+			d:Destroy()
+		elseif d:IsA("Animator") then
+			d:Destroy()
+		elseif d:IsA("Humanoid") then
+			-- keep humanoid (nice for rig), but stop states
+			pcall(function()
+				d.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+				d.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+				d.NameDisplayDistance = 0
+			end)
+		end
+	end
+	return char
+end
+
+local function PaintCharacter(char: Model, color: Color3)
+	for _, d in ipairs(char:GetDescendants()) do
+		if d:IsA("BasePart") then
+			d.Color = color
+			d.Material = Enum.Material.ForceField
+			d.CastShadow = false
+		elseif d:IsA("Decal") then
+			-- optional: hide face decals so preview looks "solid"
+			d.Transparency = 1
+		elseif d:IsA("Texture") then
+			d.Transparency = 1
+		end
+	end
+end
+
+local function MakeCorner(parent: Instance, anchor: Vector2, pos: UDim2, size: UDim2, thickness: number, col: Color3)
+	local holder = Instance.new("Frame")
+	holder.BackgroundTransparency = 1
+	holder.AnchorPoint = anchor
+	holder.Position = pos
+	holder.Size = size
+	holder.Parent = parent
+
+	-- two lines: horizontal + vertical
+	local h = Instance.new("Frame")
+	h.BorderSizePixel = 0
+	h.BackgroundColor3 = col
+	h.Size = UDim2.new(1, 0, 0, thickness)
+	h.Position = UDim2.new(0, 0, 0, 0)
+	h.Parent = holder
+
+	local v = Instance.new("Frame")
+	v.BorderSizePixel = 0
+	v.BackgroundColor3 = col
+	v.Size = UDim2.new(0, thickness, 1, 0)
+	v.Position = UDim2.new(0, 0, 0, 0)
+	v.Parent = holder
+
+	return holder, h, v
+end
+
+--// Main factory
+-- parent: where to put the preview (Frame/ScrollingFrame/etc)
+-- opts: sizing + initial visuals
+local function CreateESPPreview(parent: Instance, opts)
+	opts = opts or {}
+
+	local preview = {}
+	preview.Enabled = true
+
+	-- style (defaults match your screenshot vibe)
+	preview.BoxColor = opts.BoxColor or Color3.fromRGB(255, 255, 255)
+	preview.PreviewColor = opts.PreviewColor or Color3.fromRGB(255, 0, 242) -- pink
+	preview.CornerLength = opts.CornerLength or 12
+	preview.Thickness = opts.Thickness or 2
+
+	preview.NameColor = opts.NameColor or Color3.fromRGB(255, 255, 255)
+	preview.WeaponColor = opts.WeaponColor or Color3.fromRGB(255, 255, 255)
+
+	preview.Distance = opts.Distance or 20
+	preview.WeaponText = opts.WeaponText or "none"
+
+	-- container
+	local root = Instance.new("Frame")
+	root.Name = "ESPPreview"
+	root.BackgroundTransparency = 1
+	root.Size = opts.Size or UDim2.new(0, 170, 0, 210)
+	root.Parent = parent
+	preview.Root = root
+
+	-- viewport
+	local viewport = Instance.new("ViewportFrame")
+	viewport.Name = "Viewport"
+	viewport.BackgroundColor3 = opts.BackgroundColor3 or Color3.fromRGB(80, 80, 80)
+	viewport.BorderSizePixel = 0
+	viewport.Size = UDim2.new(1, 0, 1, 0)
+	viewport.Parent = root
+	preview.Viewport = viewport
+
+	local cam = Instance.new("Camera")
+	cam.FieldOfView = 70
+	viewport.CurrentCamera = cam
+	cam.Parent = viewport
+	preview.Camera = cam
+
+	-- overlay (ESP elements sit above viewport)
+	local overlay = Instance.new("Frame")
+	overlay.Name = "Overlay"
+	overlay.BackgroundTransparency = 1
+	overlay.Size = UDim2.new(1, 0, 1, 0)
+	overlay.ZIndex = 10
+	overlay.Parent = root
+	preview.Overlay = overlay
+
+	-- Name label (top)
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Name = "Name"
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.TextColor3 = preview.NameColor
+	nameLabel.TextStrokeTransparency = 0
+	nameLabel.TextScaled = false
+	nameLabel.Font = Enum.Font.SourceSansBold
+	nameLabel.TextSize = 14
+	nameLabel.AnchorPoint = Vector2.new(0.5, 0)
+	nameLabel.Position = UDim2.new(0.5, 0, 0, 2)
+	nameLabel.Size = UDim2.new(1, -8, 0, 18)
+	nameLabel.ZIndex = 11
+	nameLabel.Parent = overlay
+	preview.NameLabel = nameLabel
+
+	-- Weapon label (bottom)
+	local weaponLabel = Instance.new("TextLabel")
+	weaponLabel.Name = "Weapon"
+	weaponLabel.BackgroundTransparency = 1
+	weaponLabel.TextColor3 = preview.WeaponColor
+	weaponLabel.TextStrokeTransparency = 0
+	weaponLabel.Font = Enum.Font.SourceSans
+	weaponLabel.TextSize = 14
+	weaponLabel.AnchorPoint = Vector2.new(0.5, 1)
+	weaponLabel.Position = UDim2.new(0.5, 0, 1, -2)
+	weaponLabel.Size = UDim2.new(1, -8, 0, 18)
+	weaponLabel.ZIndex = 11
+	weaponLabel.Parent = overlay
+	preview.WeaponLabel = weaponLabel
+
+	-- Box bounds (like screenshot: centered inside)
+	local box = Instance.new("Frame")
+	box.Name = "Box"
+	box.BackgroundTransparency = 1
+	box.AnchorPoint = Vector2.new(0.5, 0.5)
+	box.Position = UDim2.new(0.5, 0, 0.52, 6)
+	box.Size = UDim2.new(0, 105, 0, 150)
+	box.ZIndex = 11
+	box.Parent = overlay
+	preview.BoxFrame = box
+
+	-- Corner box (8 segments as 4 corners)
+	local corners = {}
+
+	local L = preview.CornerLength
+	local t = preview.Thickness
+	local col = preview.BoxColor
+
+	-- top-left
+	corners.tl = { MakeCorner(box, Vector2.new(0,0), UDim2.new(0,0,0,0), UDim2.new(0,L,0,L), t, col) }
+	-- top-right
+	do
+		local holder = Instance.new("Frame")
+		holder.BackgroundTransparency = 1
+		holder.AnchorPoint = Vector2.new(1,0)
+		holder.Position = UDim2.new(1,0,0,0)
+		holder.Size = UDim2.new(0,L,0,L)
+		holder.Parent = box
+
+		local h = Instance.new("Frame")
+		h.BorderSizePixel = 0
+		h.BackgroundColor3 = col
+		h.Size = UDim2.new(1, 0, 0, t)
+		h.Position = UDim2.new(0, 0, 0, 0)
+		h.Parent = holder
+
+		local v = Instance.new("Frame")
+		v.BorderSizePixel = 0
+		v.BackgroundColor3 = col
+		v.Size = UDim2.new(0, t, 1, 0)
+		v.Position = UDim2.new(1, -t, 0, 0)
+		v.Parent = holder
+
+		corners.tr = {holder,h,v}
+	end
+	-- bottom-left
+	do
+		local holder = Instance.new("Frame")
+		holder.BackgroundTransparency = 1
+		holder.AnchorPoint = Vector2.new(0,1)
+		holder.Position = UDim2.new(0,0,1,0)
+		holder.Size = UDim2.new(0,L,0,L)
+		holder.Parent = box
+
+		local h = Instance.new("Frame")
+		h.BorderSizePixel = 0
+		h.BackgroundColor3 = col
+		h.Size = UDim2.new(1, 0, 0, t)
+		h.Position = UDim2.new(0, 0, 1, -t)
+		h.Parent = holder
+
+		local v = Instance.new("Frame")
+		v.BorderSizePixel = 0
+		v.BackgroundColor3 = col
+		v.Size = UDim2.new(0, t, 1, 0)
+		v.Position = UDim2.new(0, 0, 0, 0)
+		v.Parent = holder
+
+		corners.bl = {holder,h,v}
+	end
+	-- bottom-right
+	do
+		local holder = Instance.new("Frame")
+		holder.BackgroundTransparency = 1
+		holder.AnchorPoint = Vector2.new(1,1)
+		holder.Position = UDim2.new(1,0,1,0)
+		holder.Size = UDim2.new(0,L,0,L)
+		holder.Parent = box
+
+		local h = Instance.new("Frame")
+		h.BorderSizePixel = 0
+		h.BackgroundColor3 = col
+		h.Size = UDim2.new(1, 0, 0, t)
+		h.Position = UDim2.new(0, 0, 1, -t)
+		h.Parent = holder
+
+		local v = Instance.new("Frame")
+		v.BorderSizePixel = 0
+		v.BackgroundColor3 = col
+		v.Size = UDim2.new(0, t, 1, 0)
+		v.Position = UDim2.new(1, -t, 0, 0)
+		v.Parent = holder
+
+		corners.br = {holder,h,v}
+	end
+
+	preview.Corners = corners
+
+	-- Clone + mount character in viewport (like your reference does) :contentReference[oaicite:1]{index=1}
+	local function BuildViewportCharacter()
+		-- cleanup old clone
+		if preview.CharClone then
+			SafeDestroy(preview.CharClone)
+			preview.CharClone = nil
+		end
+
+		local char = LP.Character
+		if not char then return end
+		char.Archivable = true
+
+		local clone = char:Clone()
+		StripCharacterForViewport(clone)
+		PaintCharacter(clone, preview.PreviewColor)
+
+		-- ensure PrimaryPart exists
+		local hrp = clone:FindFirstChild("HumanoidRootPart") or clone:FindFirstChildWhichIsA("BasePart")
+		if hrp then
+			clone.PrimaryPart = hrp
+		end
+
+		clone.Parent = viewport
+		preview.CharClone = clone
+
+		-- camera position
+		if clone.PrimaryPart then
+			cam.CFrame = CFrame.new(0, 1.5, 6) * CFrame.Angles(0, math.rad(180), 0)
+			clone:SetPrimaryPartCFrame(CFrame.new(0, 0.5, 0))
+		end
+	end
+
+	BuildViewportCharacter()
+
+	-- rotate like a preview (optional)
+	local rot = 0
+	preview._conn = RunService.RenderStepped:Connect(function()
+		if not preview.Enabled then return end
+		if preview.CharClone and preview.CharClone.PrimaryPart then
+			rot += 0.6
+			preview.CharClone:SetPrimaryPartCFrame(CFrame.new(0, 0.5, 0) * CFrame.Angles(0, math.rad(rot), 0))
+		end
+	end)
+
+	-- keep it updated on respawn
+	preview._respawnConn = LP.CharacterAdded:Connect(function()
+		task.wait(0.1)
+		BuildViewportCharacter()
+		preview:Refresh()
+	end)
+
+	function preview:Refresh()
+		-- labels
+		local name = LP.Name or "Player"
+		local dist = tostring(self.Distance or 0)
+		self.NameLabel.Text = string.format("%s [%s]", name, dist)
+		self.NameLabel.TextColor3 = self.NameColor
+
+		self.WeaponLabel.Text = tostring(self.WeaponText or "none")
+		self.WeaponLabel.TextColor3 = self.WeaponColor
+
+		-- box colors/thickness/length
+		local L2 = self.CornerLength
+		local t2 = self.Thickness
+		local bc = self.BoxColor
+
+		self.BoxFrame.Size = self.BoxFrame.Size -- no-op, just here if you wanna adjust
+		-- update each corner segment
+		for _, c in pairs(self.Corners) do
+			local holder, h, v = c[1], c[2], c[3]
+			holder.Size = UDim2.new(0, L2, 0, L2)
+			h.Size = UDim2.new(1, 0, 0, t2)
+			v.Size = UDim2.new(0, t2, 1, 0)
+			h.BackgroundColor3 = bc
+			v.BackgroundColor3 = bc
+		end
+
+		-- repaint avatar if changed
+		if self.CharClone then
+			PaintCharacter(self.CharClone, self.PreviewColor)
+		end
+	end
+
+	function preview:SetEnabled(on)
+		self.Enabled = (on and true or false)
+		self.Root.Visible = self.Enabled
+	end
+
+	function preview:Destroy()
+		if self._conn then self._conn:Disconnect() end
+		if self._respawnConn then self._respawnConn:Disconnect() end
+		SafeDestroy(self.Root)
+		SafeDestroy(self.CharClone)
+	end
+
+	preview:Refresh()
+	return preview
+end
+
+return CreateESPPreview
