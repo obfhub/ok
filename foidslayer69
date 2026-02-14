@@ -19,7 +19,7 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
-local CoreGui = game:GetService("CoreGui")
+local CoreGui = gethui()
 local TextService = game:GetService("TextService")
 local TeleportService = game:GetService("TeleportService")
 
@@ -73,7 +73,7 @@ if getgenv().XanBarInstance then
     end)
     
     pcall(function()
-        for _, gui in pairs(game:GetService("CoreGui"):GetChildren()) do
+        for _, gui in pairs(gethui():GetChildren()) do
             if gui.Name:find("Xan") or gui.Name:find("xan") then
                 gui:Destroy()
             end
@@ -1339,7 +1339,7 @@ function CrosshairEngine.CreateGuiCrosshair()
     screenGui.IgnoreGuiInset = true
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     
-    pcall(function() screenGui.Parent = game:GetService("CoreGui") end)
+    pcall(function() screenGui.Parent = gethui() end)
     if not screenGui.Parent then
         screenGui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
     end
@@ -31024,7 +31024,7 @@ function Xan:ShowKeySystem(cfg)
 
     local TweenService = game:GetService("TweenService")
     local RunService = game:GetService("RunService")
-    local CoreGui = game:GetService("CoreGui")
+    local CoreGui = gethui()
 
     local parent = (gethui and gethui()) or CoreGui
 
@@ -31290,12 +31290,22 @@ function Xan:ShowKeySystem(cfg)
                 return
             end
 
-            if result then
-                success = true
-                setStatus("Key accepted!", Color3.fromRGB(0,255,0))
-                task.wait(0.5)
-                sg:Destroy()
-            else
+if result then
+    success = true
+    setStatus("Key accepted!", Color3.fromRGB(0,255,0))
+
+    -- RUN SUCCESS CALLBACK
+    if type(cfg.OnSuccess) == "function" then
+        local ok2, err2 = pcall(cfg.OnSuccess, key)
+        if not ok2 then
+            warn("OnSuccess error:", err2)
+        end
+    end
+
+    task.wait(0.2)
+    sg:Destroy()
+else
+
                 setStatus("Invalid key.", Color3.fromRGB(255,0,0))
             end
 
@@ -31313,5 +31323,4 @@ end
 
 
 return Xan
-
 
