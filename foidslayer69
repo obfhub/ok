@@ -31150,7 +31150,7 @@ function Xan:ShowKeySystem(cfg)
     title.TextSize = 16
     title.TextColor3 = ACCENT
     title.TextXAlignment = Enum.TextXAlignment.Center
-    title.Text = "ObfHub: SECURE"
+    title.Text = "ObfHub KeySystem"
 
     -- KEY BOX
     local keyFrame = Instance.new("Frame")
@@ -31240,7 +31240,7 @@ function Xan:ShowKeySystem(cfg)
     verify.BackgroundColor3 = ACCENT
     verify.Font = FONT
     verify.TextSize = 14
-    verify.TextColor3 = Color3.fromRGB(0,0,0)
+    verify.TextColor3 = Color3.fromRGB(255,255,255)
     verify.Text = "VERIFY"
     verify.AutoButtonColor = false
     Instance.new("UICorner", verify).CornerRadius = UDim.new(0,4)
