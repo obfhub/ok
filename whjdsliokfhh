@@ -1,0 +1,302 @@
+function Xan:ShowKeySystem(cfg)
+    cfg = cfg or {}
+
+    local TweenService = game:GetService("TweenService")
+    local CoreGui = game:GetService("CoreGui")
+
+    local parent = (gethui and gethui()) or CoreGui
+
+    if parent:FindFirstChild("XanStandaloneKeySystem") then
+        parent.XanStandaloneKeySystem:Destroy()
+    end
+
+    local ACCENT = Color3.fromRGB(255, 0, 242)
+    local FONT = Enum.Font.Code
+
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "XanStandaloneKeySystem"
+    sg.ResetOnSpawn = false
+    sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    sg.DisplayOrder = 999
+    sg.Parent = parent
+
+    -- MAIN PANEL
+    local root = Instance.new("Frame")
+    root.Name = "Root"
+    root.Parent = sg
+    root.AnchorPoint = Vector2.new(0.5, 0.5)
+    root.Position = UDim2.fromScale(0.5, 0.5)
+    root.Size = UDim2.fromOffset(420, 215)
+    root.BackgroundColor3 = Color3.fromRGB(10, 10, 12)
+    root.BorderSizePixel = 0
+
+    local rootCorner = Instance.new("UICorner")
+    rootCorner.CornerRadius = UDim.new(0, 6)
+    rootCorner.Parent = root
+
+    local rootStroke = Instance.new("UIStroke")
+    rootStroke.Parent = root
+    rootStroke.Thickness = 1
+    rootStroke.Transparency = 0.35
+    rootStroke.Color = Color3.fromRGB(255, 255, 255)
+
+    -- STARFIELD BACKGROUND (procedural dots)
+    local stars = Instance.new("Frame")
+    stars.Name = "Stars"
+    stars.Parent = root
+    stars.BackgroundColor3 = Color3.fromRGB(6, 6, 8)
+    stars.BorderSizePixel = 0
+    stars.Size = UDim2.new(1, 0, 1, 0)
+    Instance.new("UICorner", stars).CornerRadius = UDim.new(0, 6)
+
+    -- star dots
+    local function makeStar(x, y, size, alpha, tint)
+        local s = Instance.new("Frame")
+        s.Parent = stars
+        s.BorderSizePixel = 0
+        s.BackgroundColor3 = tint
+        s.BackgroundTransparency = alpha
+        s.Size = UDim2.fromOffset(size, size)
+        s.Position = UDim2.new(0, x, 0, y)
+        Instance.new("UICorner", s).CornerRadius = UDim.new(1, 0)
+        return s
+    end
+
+    do
+        local w, h = 420, 215
+        math.randomseed(tick() * 1000)
+        for _ = 1, 130 do
+            local x = math.random(0, w)
+            local y = math.random(0, h)
+            local size = (math.random() < 0.82) and 1 or 2
+            local isAccent = (math.random() < 0.12)
+            local tint = isAccent and ACCENT or Color3.fromRGB(220, 220, 220)
+            local alpha = isAccent and 0.25 or 0.55
+            makeStar(x, y, size, alpha, tint)
+        end
+    end
+
+    -- CONTENT HOLDER (keeps stars behind)
+    local content = Instance.new("Frame")
+    content.Parent = root
+    content.BackgroundTransparency = 1
+    content.Size = UDim2.new(1, 0, 1, 0)
+
+    local pad = Instance.new("UIPadding")
+    pad.Parent = content
+    pad.PaddingLeft = UDim.new(0, 18)
+    pad.PaddingRight = UDim.new(0, 18)
+    pad.PaddingTop = UDim.new(0, 14)
+    pad.PaddingBottom = UDim.new(0, 14)
+
+    -- TITLE
+    local title = Instance.new("TextLabel")
+    title.Parent = content
+    title.BackgroundTransparency = 1
+    title.Size = UDim2.new(1, 0, 0, 24)
+    title.Font = FONT
+    title.TextSize = 16
+    title.TextColor3 = ACCENT
+    title.TextXAlignment = Enum.TextXAlignment.Center
+    title.Text = (cfg.Title or "ObfHub") .. ": SECURE"
+
+    -- KEY BOX BACKPLATE
+    local keyFrame = Instance.new("Frame")
+    keyFrame.Parent = content
+    keyFrame.Position = UDim2.fromOffset(0, 44)
+    keyFrame.Size = UDim2.new(1, 0, 0, 42)
+    keyFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
+    keyFrame.BorderSizePixel = 0
+    Instance.new("UICorner", keyFrame).CornerRadius = UDim.new(0, 4)
+
+    local keyStroke = Instance.new("UIStroke")
+    keyStroke.Parent = keyFrame
+    keyStroke.Thickness = 1
+    keyStroke.Transparency = 0.55
+    keyStroke.Color = Color3.fromRGB(255, 255, 255)
+
+    local keyBox = Instance.new("TextBox")
+    keyBox.Parent = keyFrame
+    keyBox.BackgroundTransparency = 1
+    keyBox.Position = UDim2.fromOffset(10, 0)
+    keyBox.Size = UDim2.new(1, -20, 1, 0)
+    keyBox.ClearTextOnFocus = false
+    keyBox.Text = ""
+    keyBox.PlaceholderText = cfg.KeyPlaceholder or "Enter Key..."
+    keyBox.PlaceholderColor3 = Color3.fromRGB(170, 170, 170)
+    keyBox.Font = FONT
+    keyBox.TextSize = 14
+    keyBox.TextColor3 = Color3.fromRGB(235, 235, 235)
+    keyBox.TextXAlignment = Enum.TextXAlignment.Center
+
+    keyBox.Focused:Connect(function()
+        TweenService:Create(keyStroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Transparency = 0.15,
+            Color = ACCENT
+        }):Play()
+    end)
+
+    keyBox.FocusLost:Connect(function()
+        TweenService:Create(keyStroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Transparency = 0.55,
+            Color = Color3.fromRGB(255,255,255)
+        }):Play()
+    end)
+
+    -- STATUS (small line like the screenshot spacing)
+    local status = Instance.new("TextLabel")
+    status.Parent = content
+    status.BackgroundTransparency = 1
+    status.Position = UDim2.fromOffset(0, 92)
+    status.Size = UDim2.new(1, 0, 0, 18)
+    status.Font = FONT
+    status.TextSize = 12
+    status.TextColor3 = Color3.fromRGB(185, 185, 185)
+    status.TextXAlignment = Enum.TextXAlignment.Center
+    status.Text = ""
+
+    local function setStatus(text, color)
+        status.Text = text or ""
+        if color then
+            status.TextColor3 = color
+        else
+            status.TextColor3 = Color3.fromRGB(185, 185, 185)
+        end
+    end
+
+    -- BUTTONS ROW
+    local btnRow = Instance.new("Frame")
+    btnRow.Parent = content
+    btnRow.BackgroundTransparency = 1
+    btnRow.Position = UDim2.fromOffset(0, 126)
+    btnRow.Size = UDim2.new(1, 0, 0, 44)
+
+    local getKey = Instance.new("TextButton")
+    getKey.Parent = btnRow
+    getKey.Size = UDim2.new(0.5, -8, 1, 0)
+    getKey.Position = UDim2.new(0, 0, 0, 0)
+    getKey.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    getKey.BorderSizePixel = 0
+    getKey.Font = FONT
+    getKey.TextSize = 14
+    getKey.TextColor3 = Color3.fromRGB(230, 230, 230)
+    getKey.Text = "GET KEY"
+    getKey.AutoButtonColor = false
+    Instance.new("UICorner", getKey).CornerRadius = UDim.new(0, 4)
+
+    local getStroke = Instance.new("UIStroke")
+    getStroke.Parent = getKey
+    getStroke.Thickness = 1
+    getStroke.Transparency = 0.7
+    getStroke.Color = Color3.fromRGB(255,255,255)
+
+    local verify = Instance.new("TextButton")
+    verify.Parent = btnRow
+    verify.Size = UDim2.new(0.5, -8, 1, 0)
+    verify.Position = UDim2.new(0.5, 8, 0, 0)
+    verify.BackgroundColor3 = ACCENT
+    verify.BorderSizePixel = 0
+    verify.Font = FONT
+    verify.TextSize = 14
+    verify.TextColor3 = Color3.fromRGB(0, 0, 0)
+    verify.Text = "VERIFY"
+    verify.AutoButtonColor = false
+    Instance.new("UICorner", verify).CornerRadius = UDim.new(0, 4)
+
+    local verifyStroke = Instance.new("UIStroke")
+    verifyStroke.Parent = verify
+    verifyStroke.Thickness = 1
+    verifyStroke.Transparency = 0.85
+    verifyStroke.Color = Color3.fromRGB(0,0,0)
+
+    -- hover/press feel (visual only)
+    local function hook(btn, base, hover)
+        btn.MouseEnter:Connect(function()
+            TweenService:Create(btn, TweenInfo.new(0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                BackgroundColor3 = hover
+            }):Play()
+        end)
+        btn.MouseLeave:Connect(function()
+            TweenService:Create(btn, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                BackgroundColor3 = base
+            }):Play()
+        end)
+        btn.MouseButton1Down:Connect(function()
+            TweenService:Create(btn, TweenInfo.new(0.06, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Size = btn.Size - UDim2.new(0, 0, 0, 2)
+            }):Play()
+        end)
+        btn.MouseButton1Up:Connect(function()
+            TweenService:Create(btn, TweenInfo.new(0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Size = btn.Size + UDim2.new(0, 0, 0, 2)
+            }):Play()
+        end)
+    end
+
+    hook(getKey, Color3.fromRGB(35,35,40), Color3.fromRGB(46,46,54))
+    hook(verify, ACCENT, Color3.fromRGB(255, 40, 245))
+
+    -- ===== LOGIC (UNCHANGED) =====
+    local busy = false
+    local success = false
+
+    getKey.MouseButton1Click:Connect(function()
+        if busy then return end
+        busy = true
+
+        setStatus("Generating link...", Color3.fromRGB(255, 255, 0))
+
+        task.spawn(function()
+            local ok = pcall(copyLink)
+            if ok then
+                setStatus("Link copied to clipboard.", Color3.fromRGB(200, 200, 200))
+            else
+                setStatus("Failed to get link.", Color3.fromRGB(255, 0, 0))
+            end
+            busy = false
+        end)
+    end)
+
+    verify.MouseButton1Click:Connect(function()
+        if busy then return end
+        busy = true
+
+        local key = (keyBox.Text or ""):gsub("%s+", "")
+        if #key < 3 then
+            setStatus("Enter a valid key.", Color3.fromRGB(255, 0, 0))
+            busy = false
+            return
+        end
+
+        setStatus("Verifying...", Color3.fromRGB(255, 255, 0))
+
+        task.spawn(function()
+            local ok, result = pcall(function()
+                return verifyKey(key)
+            end)
+
+            if not ok then
+                setStatus("Verification error.", Color3.fromRGB(255, 0, 0))
+                busy = false
+                return
+            end
+
+            if result then
+                success = true
+                setStatus("Key accepted!", Color3.fromRGB(0, 255, 0))
+                task.wait(0.5)
+                sg:Destroy()
+            else
+                setStatus("Invalid key.", Color3.fromRGB(255, 0, 0))
+            end
+
+            busy = false
+        end)
+    end)
+
+    task.spawn(function()
+        repeat task.wait() until success
+    end)
+
+    return sg
+end
